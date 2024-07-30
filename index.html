@@ -17,6 +17,7 @@
         border: 1px solid black;
         padding: 8px;
         text-align: left;
+        font-variant-numeric: tabular-nums;
       }
       th {
         background-color: #f2f2f2;
@@ -56,6 +57,7 @@
             step="100"
             value="2900"
             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+            onchange="calculateTable()"
           />
         </div>
 
@@ -63,37 +65,46 @@
           <label class="block text-sm font-medium text-gray-700 mb-1"
             >Μηνιαία λογιστική υποστήριξη (€):</label
           >
-          <div class="grid grid-cols-3 gap-4">
-            <input
-              type="number"
-              id="logistiki-atomiki"
-              name="logistiki"
-              min="0"
-              step="10"
-              value="50"
-              placeholder="ΑΤΟΜΙΚΗ"
-              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-            />
-            <input
-              type="number"
-              id="logistiki-oe"
-              name="logistiki"
-              min="0"
-              step="10"
-              value="70"
-              placeholder="ΟΕ -ΕΕ"
-              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-            />
-            <input
-              type="number"
-              id="logistiki-ike"
-              name="logistiki"
-              min="0"
-              step="10"
-              value="250"
-              placeholder="ΙΚΕ"
-              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-            />
+          <div class="flex gap-4 mt-6">
+            <div class="flex flex-col gap-2">
+              <span class="text-sm text-gray-600">ΑΤΟΜΙΚΗ:</span>
+              <input
+                type="number"
+                id="logistiki-atomiki"
+                name="logistiki"
+                min="0"
+                step="10"
+                value="50"
+                placeholder="ΑΤΟΜΙΚΗ"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+              />
+            </div>
+            <div class="flex flex-col gap-2">
+              <span class="text-sm text-gray-600">ΟΕ -ΕΕ:</span>
+              <input
+                type="number"
+                id="logistiki-oe"
+                name="logistiki"
+                min="0"
+                step="10"
+                value="70"
+                placeholder="ΟΕ -ΕΕ"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+              />
+            </div>
+            <div class="flex flex-col gap-2">
+              <span class="text-sm text-gray-600">ΙΚΕ:</span>
+              <input
+                type="number"
+                id="logistiki-ike"
+                name="logistiki"
+                min="0"
+                step="10"
+                value="250"
+                placeholder="ΙΚΕ"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+              />
+            </div>
           </div>
         </div>
 
@@ -260,7 +271,8 @@
               if (remainingAmount <= 0) return { amount: 0, tax: 0 };
               const taxableAmount = Math.min(
                 remainingAmount,
-                bracket.limit - (bracket.limit === Infinity ? 40000 : 0)
+                bracket.limit -
+                  (bracket.limit === Infinity ? 40000 : bracket.limit - 10000)
               );
               const bracketTax = taxableAmount * bracket.rate;
               tax += bracketTax;
@@ -315,6 +327,20 @@
         return results;
       }
 
+      function createTaxBracketTooltip(taxDetails) {
+        return taxDetails
+          .map((detail, index) =>
+            detail.amount > 0
+              ? `Bracket ${index + 1}: ${detail.amount.toFixed(2)}€ taxed at ${(
+                  (detail.tax / detail.amount) *
+                  100
+                ).toFixed(2)}%`
+              : ""
+          )
+          .filter(Boolean)
+          .join("\n");
+      }
+
       function displayResults(results, months) {
         const resultDiv = document.getElementById("result");
         resultDiv.innerHTML = "";
@@ -342,14 +368,14 @@
         tbody.className = "bg-white divide-y divide-gray-200";
 
         const rows = [
-          ["Target Take-Home Income", "tax", "Taxes"],
+          ["tax", "Total taxes"],
+          ["grossIncome", "Gross Income Needed"],
+          ["monthlyGrossIncome", "Monthly Gross Income Needed"],
           ["telosEpitideumatos", "Τέλος επιτηδεύματος"],
           ["logistikiYpostiriksi", "Μηνιαία λογιστική υποστήριξη"],
           ["efka", "ΕΦΚΑ"],
           ["gemi", "ΓΕΜΗ annual cost"],
           ["totalExpenses", "Total Expenses"],
-          ["grossIncome", "Gross Income Needed"],
-          ["monthlyGrossIncome", "Monthly Gross Income Needed"],
         ];
 
         rows.forEach(([key, label]) => {
@@ -364,40 +390,33 @@
             cell.className =
               "px-6 py-4 whitespace-nowrap text-sm text-gray-500";
             const value =
-              key === "Target Take-Home Income"
+              key === "tax"
                 ? Object.values(results.period[type])[0] +
                   results.period[type].totalExpenses
                 : results.period[type][key];
-            cell.textContent = value.toFixed(2) + "€";
-          });
 
-          if (key === "tax") {
-            results.period["ΑΤΟΜΙΚΗ"].taxDetails.forEach((detail, index) => {
-              if (detail.amount > 0) {
-                const subRow = tbody.insertRow();
-                subRow.className = "bg-gray-50";
-                const subLabel = subRow.insertCell();
-                subLabel.className =
-                  "px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900";
-                subLabel.textContent = `Bracket ${index + 1}`;
-                subLabel.colSpan = "2";
-                const subValue = subRow.insertCell();
-                subValue.className =
-                  "px-6 py-4 whitespace-nowrap text-sm text-gray-500";
-                subValue.textContent = `${detail.amount.toFixed(
-                  2
-                )}€ taxed at ${((detail.tax / detail.amount) * 100).toFixed(
-                  2
-                )}%`;
-                subValue.colSpan = "2";
-              }
-            });
-          }
+            if (key === "tax" && type === "ΑΤΟΜΙΚΗ") {
+              const taxSpan = document.createElement("span");
+              taxSpan.textContent = value.toFixed(2) + "€";
+              taxSpan.className =
+                "cursor-help border-b border-dotted border-gray-500";
+              taxSpan.title = createTaxBracketTooltip(
+                results.period[type].taxDetails
+              );
+              cell.appendChild(taxSpan);
+
+              const infoIcon = document.createElement("span");
+              infoIcon.textContent = " ℹ️";
+              infoIcon.className = "ml-1 text-xs text-blue-500";
+              cell.appendChild(infoIcon);
+            } else {
+              cell.textContent = value.toFixed(2) + "€";
+            }
+          });
         });
 
         resultDiv.appendChild(table);
       }
-
       // Initial calculation
       calculateTable();
     </script>
